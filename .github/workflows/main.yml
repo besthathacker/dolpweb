@@ -1,0 +1,67 @@
+name: Build Dolphin Web
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake ninja-build python3 python3-pip git curl
+
+      - name: Install Emscripten
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          chmod +x emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+          source ./emsdk_env.sh
+          echo "PATH=$PATH" >> $GITHUB_ENV
+
+      - name: Download Dolphin
+        run: |
+          git clone https://github.com/dolphin-emu/dolphin.git dolphin-src
+          cd dolphin-src
+          git submodule update --init --recursive
+
+      - name: Configure Dolphin
+        run: |
+          cd dolphin-src
+          mkdir -p build-web
+          cd build-web
+          emcmake cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_GENERIC=ON \
+            -DENABLE_QT=OFF \
+            -DENABLE_SDL=OFF \
+            -DENABLE_X11=OFF \
+            -DENABLE_LTO=OFF \
+            -DENABLE_HEADLESS=ON \
+            -DUSE_DISCORD_PRESENCE=OFF \
+            -DUSE_MGBA=OFF \
+            -DZLIB_DONT_USE_X86_FEATURES=ON \
+            -DARCH_X86=OFF \
+            -DARCH_X86_64=OFF \
+            -DBASEARCH_X86_FOUND=OFF
+
+      - name: Build Dolphin
+        run: |
+          cd dolphin-src/build-web
+          make -j$(nproc) -i
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dolphin-web
+          path: dolphin-src
