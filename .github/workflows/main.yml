@@ -1,4 +1,4 @@
-name: Build Dolphin Web
+name: Build Dolphin Webg
 
 on:
   push:
