@@ -26,6 +26,10 @@ jobs:
           ./emsdk install latest
           ./emsdk activate latest
           echo "PATH=/home/runner/work/dolpweb/dolpweb/emsdk:/home/runner/work/dolpweb/dolpweb/emsdk/upstream/emscripten:\$PATH" >> $GITHUB_ENV
+
+      - name: Install coreutils
+        run: sudo apt-get update && sudo apt-get install -y coreutils
+
       - name: Load EMSDK
         run: source $GITHUB_WORKSPACE/emsdk/emsdk_env.sh
 
