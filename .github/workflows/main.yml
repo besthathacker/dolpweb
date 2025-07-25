@@ -36,9 +36,11 @@ jobs:
           echo "EM_CONFIG=$EM_CONFIG" >> $GITHUB_ENV
           echo "EM_CACHE=$EM_CACHE" >> $GITHUB_ENV
 
-      - name: Clone Dolphin
+      - name: Clone Dolphin (with submodules)
         run: |
-          git clone https://github.com/dolphin-emu/dolphin.git dolphin-src
+          git clone --recursive https://github.com/dolphin-emu/dolphin.git dolphin-src
+          cd dolphin-src
+          git submodule update --init --recursive
 
       - name: Configure CMake for Wii Core
         shell: bash
