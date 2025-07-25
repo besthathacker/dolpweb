@@ -29,6 +29,7 @@ jobs:
 
       - name: Install coreutils
         run: |
+          cd
           sudo apt-get update 
           sudo apt-get install -y coreutils
 
