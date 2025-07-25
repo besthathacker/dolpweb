@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash  # Ensure we use bash for 'source'
 
     steps:
       - name: Checkout Repo
@@ -17,33 +20,34 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake coreutils build-essential python3
+          sudo apt-get install -y ninja-build cmake python3 nodejs coreutils git
 
       - name: Install EMSDK
-        shell: bash
         run: |
           git clone https://github.com/emscripten-core/emsdk.git
           cd emsdk
           ./emsdk install latest
           ./emsdk activate latest
-          echo "PATH=$GITHUB_WORKSPACE/emsdk:$GITHUB_WORKSPACE/emsdk/upstream/emscripten:$PATH" >> $GITHUB_ENV
+          ./emsdk install binaryen
+          ./emsdk activate binaryen
+          echo "source $GITHUB_WORKSPACE/emsdk/emsdk_env.sh" >> $GITHUB_ENV
 
-      - name: Load EMSDK
-        shell: bash
+      - name: Load EMSDK Environment
         run: |
           source $GITHUB_WORKSPACE/emsdk/emsdk_env.sh
-          echo "EMSDK=$EMSDK" >> $GITHUB_ENV
-          echo "EM_CONFIG=$EM_CONFIG" >> $GITHUB_ENV
-          echo "EM_CACHE=$EM_CACHE" >> $GITHUB_ENV
+          echo "BINARYEN_ROOT=$BINARYEN_ROOT" >> $GITHUB_ENV
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          which emcc
+          which wasm-opt || echo "wasm-opt missing!"
+          emcc --version
 
-      - name: Clone Dolphin (with submodules)
+      - name: Clone Dolphin
         run: |
-          git clone --recursive https://github.com/dolphin-emu/dolphin.git dolphin-src
+          git clone https://github.com/dolphin-emu/dolphin.git dolphin-src
           cd dolphin-src
           git submodule update --init --recursive
 
       - name: Configure CMake for Wii Core
-        shell: bash
         run: |
           source $GITHUB_WORKSPACE/emsdk/emsdk_env.sh
           mkdir -p build-wii
@@ -57,10 +61,11 @@ jobs:
             -DENABLE_VULKAN=OFF \
             -DENABLE_HEADLESS=ON \
             -DWII_CORE_ONLY=ON \
-            -G Ninja
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \
+            -DCMAKE_CROSSCOMPILING_EMULATOR=$GITHUB_WORKSPACE/emsdk/node/22.16.0_64bit/bin/node
 
       - name: Build Wii Core with Retry
-        shell: bash
         run: |
           cd build-wii
           set +e
@@ -70,12 +75,11 @@ jobs:
           set -e
 
       - name: Link Partial Output to WASM
-        shell: bash
         run: |
           cd build-wii
-          OBJECTS=$(find Source/Core -name '*.o')
-          if [ -n "$OBJECTS" ]; then
-            emcc $OBJECTS -o dolphin_wii_core.js -s WASM=1 -s MODULARIZE=1 -s EXPORT_ES6=1 \
+          if ls Source/Core/*/*.o > /dev/null 2>&1; then
+            emcc Source/Core/*/*.o -o dolphin_wii_core.js \
+              -s WASM=1 -s MODULARIZE=1 -s EXPORT_ES6=1 \
               -s 'EXPORTED_RUNTIME_METHODS=["cwrap","ccall"]' || echo "Partial WASM build."
           else
             echo "No .o files found. Build likely failed."
